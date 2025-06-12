@@ -514,15 +514,7 @@ def _compute_response_info(batch: DataProto) -> Dict[str, Any]:
 
 
 def log_individual_lengths_to_wandb_and_csv(batch: DataProto, step: int, output_dir: str = "outputs") -> None:
-    """
-    Log individual query and response lengths to wandb as a table and CSV.
-    Also saves the CSV to disk and uploads as a wandb artifact.
-
-    Args:
-        batch: DataProto object containing batch data
-        step: Current training step
-        output_dir: Directory to save CSV files
-    """
+    print(f"[DEBUG] Logging individual lengths to wandb/csv at step {step} (output_dir={output_dir})")
     if not WANDB_AVAILABLE or not wandb.run:
         return
         
@@ -539,6 +531,11 @@ def log_individual_lengths_to_wandb_and_csv(batch: DataProto, step: int, output_
             prompts = [None] * len(prompt_lengths)
         if responses is None:
             responses = [None] * len(response_lengths)
+
+        # Get universal_id if available
+        universal_ids = batch.batch.get("universal_id", None)
+        if universal_ids is None:
+            universal_ids = [None] * len(prompt_lengths)
         
         # Get additional metrics if available
         sequence_scores = None
@@ -552,8 +549,9 @@ def log_individual_lengths_to_wandb_and_csv(batch: DataProto, step: int, output_
         table_data = []
         csv_data = []
         
-        for i, (prompt, response, prompt_len, response_len) in enumerate(zip(prompts, responses, prompt_lengths, response_lengths)):
+        for i, (uid, prompt, response, prompt_len, response_len) in enumerate(zip(universal_ids, prompts, responses, prompt_lengths, response_lengths)):
             row = {
+                "universal_id": uid,
                 "step": step,
                 "sample_idx": i,
                 "prompt": prompt,
@@ -562,16 +560,17 @@ def log_individual_lengths_to_wandb_and_csv(batch: DataProto, step: int, output_
                 "response_length": int(response_len),
                 "total_length": int(prompt_len + response_len)
             }
-            # Add scores and rewards if available
             if sequence_scores is not None:
                 row["sequence_score"] = float(sequence_scores[i])
             if sequence_rewards is not None:
                 row["sequence_reward"] = float(sequence_rewards[i])
-            table_data.append(list(row.values()))
-            csv_data.append(row)
+            # Clean up row for CSV/JSON
+            row_clean = {k: _safe_primitive(v) for k, v in row.items()}
+            table_data.append(list(row_clean.values()))
+            csv_data.append(row_clean)
         
         # Define columns for table
-        columns = ["step", "sample_idx", "prompt", "response", "prompt_length", "response_length", "total_length"]
+        columns = ["universal_id", "step", "sample_idx", "prompt", "response", "prompt_length", "response_length", "total_length"]
         if sequence_scores is not None:
             columns.append("sequence_score")
         if sequence_rewards is not None:
@@ -963,3 +962,16 @@ def process_validation_metrics(data_sources: list[str], sample_inputs: list[str]
                 data_src2var2metric2val[data_source][var_name][metric_name] = np.mean(prompt_vals)
 
     return data_src2var2metric2val
+
+
+import collections.abc
+
+def _safe_primitive(val):
+    # Only allow str, int, float, None
+    if isinstance(val, (str, int, float)) or val is None:
+        return val
+    # Convert numpy types to python types
+    if hasattr(val, "item"):
+        return val.item()
+    # Fallback: convert to string
+    return str(val)

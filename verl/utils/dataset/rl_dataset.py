@@ -18,6 +18,7 @@ import copy
 import logging
 import os
 import re
+import uuid
 from collections import defaultdict
 from typing import List, Optional, Union
 
@@ -134,6 +135,14 @@ class RLHFDataset(Dataset):
         self.dataframe: datasets.Dataset = datasets.concatenate_datasets(dataframes)
 
         print(f"dataset len: {len(self.dataframe)}")
+
+        # --- Add universal_id to each sample if not present ---
+        def add_universal_id(example):
+            if "universal_id" not in example or not example["universal_id"]:
+                example["universal_id"] = str(uuid.uuid4())
+            return example
+
+        self.dataframe = self.dataframe.map(add_universal_id, desc="Adding universal_id to each sample")
 
         # filter out too long prompts
         if self.filter_overlong_prompts:
