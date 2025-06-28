@@ -513,9 +513,17 @@ def _compute_response_info(batch: DataProto) -> Dict[str, Any]:
     )
 
 
-def log_individual_lengths_to_wandb_and_csv(batch: DataProto, step: int, output_dir: str = "outputs") -> None:
+def log_individual_lengths_to_wandb_and_csv(
+    batch: DataProto,
+    step: int,
+    output_dir: str = "outputs",
+    universal_id_key: str = "universal_id"
+) -> None:
     print(f"[DEBUG] Logging individual lengths to wandb/csv at step {step} (output_dir={output_dir})")
+    # Debug: Print batch keys to help trace missing universal_id
+    print(f"[DEBUG] batch.batch keys: {list(batch.batch.keys())}")
     if not WANDB_AVAILABLE or not wandb.run:
+        print("[DEBUG] Wandb not available or not initialized, skipping logging")
         return
         
     try:
@@ -523,27 +531,60 @@ def log_individual_lengths_to_wandb_and_csv(batch: DataProto, step: int, output_
         prompt_lengths = response_info["prompt_length"].cpu().numpy()
         response_lengths = response_info["response_length"].cpu().numpy()
         
+        print(f"[DEBUG] Processing {len(prompt_lengths)} samples")
+        
         # Try to get prompt/response text if available
         prompts = batch.batch.get("prompts", None)
         responses = batch.batch.get("responses_text", None)
-        # If not available, just log None for text columns
         if prompts is None:
             prompts = [None] * len(prompt_lengths)
+            print("[DEBUG] No prompts found in batch")
         if responses is None:
             responses = [None] * len(response_lengths)
+            print("[DEBUG] No responses found in batch")
 
-        # Get universal_id if available
-        universal_ids = batch.batch.get("universal_id", None)
+        # --- UPDATED: Try to get universal_id from non_tensor_batch if not in batch.batch ---
+        universal_ids = batch.batch.get(universal_id_key, None)
         if universal_ids is None:
-            universal_ids = [None] * len(prompt_lengths)
+            universal_ids = batch.non_tensor_batch.get(universal_id_key, None)
+        if universal_ids is not None:
+            print(f"[DEBUG] Found universal_ids of type: {type(universal_ids)} (key: {universal_id_key})")
+            if hasattr(universal_ids, 'tolist'):
+                universal_ids = universal_ids.tolist()
+            else:
+                universal_ids = list(universal_ids)
+            universal_ids = [str(uid) if uid is not None else None for uid in universal_ids]
+            print(f"[DEBUG] Converted to {len(universal_ids)} string UIDs")
+        else:
+            # Try fallback: check for "universal_id" if key is different
+            if universal_id_key != "universal_id":
+                fallback_uids = batch.batch.get("universal_id", None)
+                if fallback_uids is None:
+                    fallback_uids = batch.non_tensor_batch.get("universal_id", None)
+                if fallback_uids is not None:
+                    universal_ids = fallback_uids
+                    if hasattr(universal_ids, 'tolist'):
+                        universal_ids = universal_ids.tolist()
+                    else:
+                        universal_ids = list(universal_ids)
+                    universal_ids = [str(uid) if uid is not None else None for uid in universal_ids]
+                    print(f"[DEBUG] Fallback: found 'universal_id' key, converted to {len(universal_ids)} string UIDs")
+                else:
+                    universal_ids = [f"missing_uid_{i}" for i in range(len(prompt_lengths))]
+                    print(f"[DEBUG] No universal_ids found for key '{universal_id_key}', creating placeholder UIDs")
+            else:
+                universal_ids = [f"missing_uid_{i}" for i in range(len(prompt_lengths))]
+                print(f"[DEBUG] No universal_ids found for key '{universal_id_key}', creating placeholder UIDs")
         
         # Get additional metrics if available
         sequence_scores = None
         sequence_rewards = None
         if "token_level_scores" in batch.batch:
             sequence_scores = batch.batch["token_level_scores"].sum(-1).cpu().numpy()
+            print(f"[DEBUG] Found sequence scores: {len(sequence_scores)}")
         if "token_level_rewards" in batch.batch:
             sequence_rewards = batch.batch["token_level_rewards"].sum(-1).cpu().numpy()
+            print(f"[DEBUG] Found sequence rewards: {len(sequence_rewards)}")
         
         # Create data for wandb table and CSV
         table_data = []
@@ -551,7 +592,7 @@ def log_individual_lengths_to_wandb_and_csv(batch: DataProto, step: int, output_
         
         for i, (uid, prompt, response, prompt_len, response_len) in enumerate(zip(universal_ids, prompts, responses, prompt_lengths, response_lengths)):
             row = {
-                "universal_id": uid,
+                universal_id_key: uid,  # Use configurable key here
                 "step": step,
                 "sample_idx": i,
                 "prompt": prompt,
@@ -564,13 +605,16 @@ def log_individual_lengths_to_wandb_and_csv(batch: DataProto, step: int, output_
                 row["sequence_score"] = float(sequence_scores[i])
             if sequence_rewards is not None:
                 row["sequence_reward"] = float(sequence_rewards[i])
+            
             # Clean up row for CSV/JSON
             row_clean = {k: _safe_primitive(v) for k, v in row.items()}
             table_data.append(list(row_clean.values()))
             csv_data.append(row_clean)
         
+        print(f"[DEBUG] Created {len(csv_data)} rows of data")
+        
         # Define columns for table
-        columns = ["universal_id", "step", "sample_idx", "prompt", "response", "prompt_length", "response_length", "total_length"]
+        columns = [universal_id_key, "step", "sample_idx", "prompt", "response", "prompt_length", "response_length", "total_length"]
         if sequence_scores is not None:
             columns.append("sequence_score")
         if sequence_rewards is not None:
@@ -579,17 +623,27 @@ def log_individual_lengths_to_wandb_and_csv(batch: DataProto, step: int, output_
         # Create and log wandb table
         table = wandb.Table(columns=columns, data=table_data)
         wandb.log({"individual_lengths/batch_details": table}, step=step)
+        print(f"[DEBUG] Logged wandb table with {len(table_data)} rows")
         
         # Save to CSV and log as artifact
         os.makedirs(output_dir, exist_ok=True)
         csv_filename = os.path.join(output_dir, f"individual_lengths_step_{step}.csv")
+        
+        # Create DataFrame and save
         df = pd.DataFrame(csv_data)
         df.to_csv(csv_filename, index=False)
+        print(f"[DEBUG] Saved CSV with {len(csv_data)} rows to {csv_filename}")
+        
+        # Print first few rows for verification
+        print("[DEBUG] First 3 rows of CSV data:")
+        for i, row in enumerate(csv_data[:3]):
+            print(f"  Row {i}: {universal_id_key}={row.get(universal_id_key)}, prompt_length={row.get('prompt_length')}, response_length={row.get('response_length')}")
         
         # Create artifact and log
         artifact = wandb.Artifact(f"lengths_step_{step}", type="dataset")
         artifact.add_file(csv_filename)
         wandb.log_artifact(artifact)
+        print(f"[DEBUG] Created and logged wandb artifact for step {step}")
         
         # Log summary statistics for easy plotting
         wandb.log({
@@ -602,9 +656,12 @@ def log_individual_lengths_to_wandb_and_csv(batch: DataProto, step: int, output_
             "individual_lengths/response_length_min": float(response_lengths.min()),
             "individual_lengths/response_length_max": float(response_lengths.max()),
         }, step=step)
+        print("[DEBUG] Logged summary statistics")
         
     except Exception as e:
         print(f"Warning: Failed to log individual lengths to wandb: {e}")
+        import traceback
+        traceback.print_exc()
 
 
 def compute_data_metrics(batch: DataProto, use_critic: bool = True, step: int = None, log_individual: bool = True, output_dir: str = "outputs") -> Dict[str, Any]:
@@ -702,10 +759,28 @@ def compute_data_metrics(batch: DataProto, use_critic: bool = True, step: int = 
     
     # Log individual lengths if requested and step is provided
     if log_individual and step is not None:
-        log_individual_lengths_to_wandb_and_csv(batch, step, output_dir=output_dir)
+        print(f"[DEBUG] About to log individual lengths for step {step}")
+        log_individual_lengths_to_wandb_and_csv(batch, step, output_dir=output_dir, universal_id_key="universal_id")
     
     return metrics
 
+
+def _safe_primitive(val):
+    """Convert values to JSON-serializable primitives"""
+    # Only allow str, int, float, None
+    if isinstance(val, (str, int, float)) or val is None:
+        return val
+    # Convert numpy types to python types
+    if hasattr(val, "item") and hasattr(val, "shape") and val.shape == ():  # scalar tensor/array
+        return val.item()
+    # Convert torch.Tensor or np.ndarray to list if not scalar
+    if hasattr(val, "tolist"):
+        try:
+            return val.tolist()
+        except:
+            return str(val)
+    # Fallback: convert to string
+    return str(val)
 
 def compute_timing_metrics(batch: DataProto, timing_raw: Dict[str, float]) -> Dict[str, Any]:
     """
@@ -966,12 +1041,15 @@ def process_validation_metrics(data_sources: list[str], sample_inputs: list[str]
 
 import collections.abc
 
-def _safe_primitive(val):
-    # Only allow str, int, float, None
-    if isinstance(val, (str, int, float)) or val is None:
-        return val
-    # Convert numpy types to python types
-    if hasattr(val, "item"):
-        return val.item()
-    # Fallback: convert to string
-    return str(val)
+# def _safe_primitive(val):
+#     # Only allow str, int, float, None
+#     if isinstance(val, (str, int, float)) or val is None:
+#         return val
+#     # Convert numpy types to python types
+#     if hasattr(val, "item") and val.shape == ():  # scalar tensor/array
+#         return val.item()
+#     # Convert torch.Tensor or np.ndarray to list if not scalar
+#     if hasattr(val, "tolist"):
+#         return val.tolist()
+#     # Fallback: convert to string
+#     return str(val)
