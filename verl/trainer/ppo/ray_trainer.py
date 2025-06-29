@@ -39,7 +39,7 @@ from torchdata.stateful_dataloader import StatefulDataLoader
 from tqdm import tqdm
 
 from verl import DataProto
-from verl.protocol import pad_dataproto_to_divisor, unpad_dataproto
+from verl.protocol import DataProtoConfig, pad_dataproto_to_divisor, unpad_dataproto
 from verl.single_controller.base import Worker
 from verl.single_controller.ray import RayClassWithInitArgs, RayResourcePool, RayWorkerGroup
 from verl.single_controller.ray.base import create_colocated_worker_cls
@@ -50,6 +50,7 @@ from verl.trainer.ppo.metric_utils import (
     compute_throughout_metrics,
     compute_timing_metrics,
     process_validation_metrics,
+    log_individual_lengths_to_wandb_and_csv,
 )
 from verl.trainer.ppo.reward import compute_reward, compute_reward_async
 from verl.utils.checkpoint.checkpoint_manager import BaseCheckpointManager, find_latest_ckpt_path
@@ -714,6 +715,19 @@ class RayPPOTrainer:
             sample_outputs.extend(output_texts)
 
             test_batch = test_batch.union(test_output_gen_batch)
+
+            # Log individual test sample lengths for tracking (similar to training)
+            try:
+                # Ensure we have a valid output directory for test validation files
+                test_output_dir = self.config.trainer.get("default_hdfs_dir") or "outputs"
+                log_individual_lengths_to_wandb_and_csv(
+                    test_batch, 
+                    step=f"test_step_{self.global_steps}",
+                    output_dir=test_output_dir,
+                    universal_id_key="uid"  # Adjust if your test data uses different UID key
+                )
+            except Exception as e:
+                print(f"Warning: Failed to log test individual lengths: {e}")
 
             # evaluate using reward_function
             result = self.val_reward_fn(test_batch, return_dict=True)

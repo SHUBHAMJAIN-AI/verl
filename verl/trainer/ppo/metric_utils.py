@@ -622,12 +622,26 @@ def log_individual_lengths_to_wandb_and_csv(
         
         # Create and log wandb table
         table = wandb.Table(columns=columns, data=table_data)
-        wandb.log({"individual_lengths/batch_details": table}, step=step)
-        print(f"[DEBUG] Logged wandb table with {len(table_data)} rows")
+        
+        # Handle string steps for wandb (it only accepts integers)
+        wandb_step = step
+        if isinstance(step, str) and step.startswith("test_step_"):
+            wandb_step = int(step.replace("test_step_", ""))
+        
+        wandb.log({"individual_lengths/batch_details": table}, step=wandb_step)
+        print(f"[DEBUG] Logged wandb table with {len(table_data)} rows (wandb_step={wandb_step})")
         
         # Save to CSV and log as artifact
         os.makedirs(output_dir, exist_ok=True)
-        csv_filename = os.path.join(output_dir, f"individual_lengths_step_{step}.csv")
+        
+        # Handle test step naming to avoid redundant "step_" prefix
+        if isinstance(step, str) and step.startswith("test_step_"):
+            # For test validation runs, use cleaner filename
+            step_suffix = step.replace("test_step_", "")
+            csv_filename = os.path.join(output_dir, f"test_validation_step_{step_suffix}.csv")
+        else:
+            # For regular training steps
+            csv_filename = os.path.join(output_dir, f"individual_lengths_step_{step}.csv")
         
         # Create DataFrame and save
         df = pd.DataFrame(csv_data)
@@ -640,7 +654,14 @@ def log_individual_lengths_to_wandb_and_csv(
             print(f"  Row {i}: {universal_id_key}={row.get(universal_id_key)}, prompt_length={row.get('prompt_length')}, response_length={row.get('response_length')}")
         
         # Create artifact and log
-        artifact = wandb.Artifact(f"lengths_step_{step}", type="dataset")
+        if isinstance(step, str) and step.startswith("test_step_"):
+            # For test validation runs, use cleaner artifact name
+            step_suffix = step.replace("test_step_", "")
+            artifact = wandb.Artifact(f"test_validation_step_{step_suffix}", type="dataset")
+        else:
+            # For regular training steps
+            artifact = wandb.Artifact(f"lengths_step_{step}", type="dataset")
+        
         artifact.add_file(csv_filename)
         wandb.log_artifact(artifact)
         print(f"[DEBUG] Created and logged wandb artifact for step {step}")
@@ -655,7 +676,7 @@ def log_individual_lengths_to_wandb_and_csv(
             "individual_lengths/response_length_std": float(response_lengths.std()),
             "individual_lengths/response_length_min": float(response_lengths.min()),
             "individual_lengths/response_length_max": float(response_lengths.max()),
-        }, step=step)
+        }, step=wandb_step)
         print("[DEBUG] Logged summary statistics")
         
     except Exception as e:
