@@ -737,6 +737,12 @@ def compute_data_metrics(batch: DataProto, use_critic: bool = True, step: int = 
         return_diff_var = torch.var(valid_returns - valid_values)
         return_var = torch.var(valid_returns)
 
+    # Calculate training accuracy from scores
+    training_accuracy = torch.mean((sequence_score > 0).float()).detach().item()
+    
+    # Print training accuracy to log file
+    print(f"Training Accuracy: {training_accuracy:.4f} ({training_accuracy*100:.2f}%)")
+    
     metrics = {
         # score
         "critic/score/mean": torch.mean(sequence_score).detach().item(),
@@ -746,6 +752,8 @@ def compute_data_metrics(batch: DataProto, use_critic: bool = True, step: int = 
         "critic/rewards/mean": torch.mean(sequence_reward).detach().item(),
         "critic/rewards/max": torch.max(sequence_reward).detach().item(),
         "critic/rewards/min": torch.min(sequence_reward).detach().item(),
+        # training accuracy
+        "training/accuracy": training_accuracy,
         # adv
         "critic/advantages/mean": torch.mean(valid_adv).detach().item(),
         "critic/advantages/max": torch.max(valid_adv).detach().item(),
@@ -1056,6 +1064,21 @@ def process_validation_metrics(data_sources: list[str], sample_inputs: list[str]
         for var_name, metric2prompt_vals in var2metric2prompt_vals.items():
             for metric_name, prompt_vals in metric2prompt_vals.items():
                 data_src2var2metric2val[data_source][var_name][metric_name] = np.mean(prompt_vals)
+
+    # Calculate and log test accuracy from score metrics
+    for data_source, var2metric2val in data_src2var2metric2val.items():
+        if "score" in var2metric2val:
+            test_accuracy_dict = {}
+            for metric_name, metric_val in var2metric2val["score"].items():
+                if "mean@" in metric_name:
+                    test_accuracy = metric_val
+                    print(f"Test Accuracy ({data_source}, {metric_name}): {test_accuracy:.4f} ({test_accuracy*100:.2f}%)")
+                    # Add to return dict for wandb logging
+                    test_accuracy_dict[metric_name] = test_accuracy
+                    # Also add a simple test_accuracy metric for easy wandb tracking
+                    test_accuracy_dict["current"] = test_accuracy
+            if test_accuracy_dict:
+                data_src2var2metric2val[data_source]["test_accuracy"] = test_accuracy_dict
 
     return data_src2var2metric2val
 
