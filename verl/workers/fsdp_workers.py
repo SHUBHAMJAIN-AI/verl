@@ -565,7 +565,7 @@ class ActorRolloutRefWorker(Worker):
                 checkpoint_contents=self.config.actor.checkpoint.contents,
             )
 
-    @register(dispatch_mode=Dispatch.DP_COMPUTE_PROTO)
+    @register(dispatch_mode=Dispatch.DP_COMPUTE_PROTO, blocking=False)
     def update_actor(self, data: DataProto):
         # Support all hardwares
         data = data.to(get_torch_device().current_device())
@@ -1035,7 +1035,7 @@ class CriticWorker(Worker):
             offload_fsdp_model_to_cpu(self.critic_module)
         return output
 
-    @register(dispatch_mode=Dispatch.DP_COMPUTE_PROTO)
+    @register(dispatch_mode=Dispatch.DP_COMPUTE_PROTO, blocking=False)
     def update_critic(self, data: DataProto):
         # Support all hardwares
         data = data.to(get_torch_device().current_device())

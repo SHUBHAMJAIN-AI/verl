@@ -406,7 +406,7 @@ class ActorRolloutRefWorker(MegatronWorker):
         torch.cuda.empty_cache()
         log_gpu_memory_usage("After init_model finish", logger=logger)
 
-    @register(dispatch_mode=Dispatch.MEGATRON_COMPUTE_PROTO)
+    @register(dispatch_mode=Dispatch.MEGATRON_COMPUTE_PROTO, blocking=False)
     @GPUMemoryLogger(role="update_actor", logger=logger)
     def update_actor(self, data: DataProto):
         assert self._is_actor
@@ -750,7 +750,7 @@ class CriticWorker(MegatronWorker):
             offload_megatron_model_to_cpu(self.critic_module)
         return output
 
-    @register(dispatch_mode=Dispatch.MEGATRON_COMPUTE_PROTO)
+    @register(dispatch_mode=Dispatch.MEGATRON_COMPUTE_PROTO, blocking=False)
     def update_critic(self, data: DataProto):
         data = data.to(torch.cuda.current_device())
 

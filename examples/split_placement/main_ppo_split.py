@@ -150,16 +150,11 @@ def main_task(config):
     # NOTE: initialze two resource pool
     actor_rollout_ref_pool_id = "actor_rollout_ref_pool"
     critic_pool_id = "critic_pool"
-    if config.trainer.nnodes // 2 == 0 and config.trainer.n_gpus_per_node // 2 > 0:
-        resource_pool_spec = {
-            actor_rollout_ref_pool_id: [config.trainer.n_gpus_per_node // 2] * config.trainer.nnodes,
-            critic_pool_id: [config.trainer.n_gpus_per_node // 2] * config.trainer.nnodes,
-        }
-    else:
-        resource_pool_spec = {
-            actor_rollout_ref_pool_id: [config.trainer.n_gpus_per_node] * (config.trainer.nnodes // 2),
-            critic_pool_id: [config.trainer.n_gpus_per_node] * (config.trainer.nnodes // 2),
-        }
+    # New logic: GPU 0 for actor+rollout, GPU 1 for critic+reference
+    resource_pool_spec = {
+        actor_rollout_ref_pool_id: [1],  # 1 GPU for actor+rollout
+        critic_pool_id: [1],  # 1 GPU for critic+reference
+    }
     print(f"resource_pool_spec: {resource_pool_spec}")
     mapping = {
         Role.ActorRollout: actor_rollout_ref_pool_id,
