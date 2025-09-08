@@ -119,7 +119,7 @@
 #         self.universal_id_key = config.get("universal_id_key", "universal_id")
 #         # Dataset directory for permanent storage
 #         self.dataset_dir = config.get("dataset_dir", "dataset")
-        
+
 #         self._download()
 #         self._read_files_and_tokenize()
 
@@ -158,17 +158,17 @@
 
 #         # Save to permanent dataset folder instead of cache
 #         os.makedirs(self.dataset_dir, exist_ok=True)
-        
+
 #         # Save as both HuggingFace dataset and parquet
 #         hf_save_dir = os.path.join(self.dataset_dir, "processed_with_uid_hf")
 #         parquet_save_path = os.path.join(self.dataset_dir, "processed_with_uid.parquet")
-        
+
 #         print(f"Saving processed dataset with universal_id to {hf_save_dir}")
 #         self.dataframe.save_to_disk(hf_save_dir)
-        
+
 #         print(f"Saving processed dataset as parquet to {parquet_save_path}")
 #         self.dataframe.to_parquet(parquet_save_path)
-        
+
 #         # Also save to cache for compatibility
 #         cache_save_dir = os.path.join(self.cache_dir, "processed_with_uid")
 #         print(f"Also saving to cache: {cache_save_dir}")
@@ -185,14 +185,14 @@
 #             )
 
 #             print(f"filter dataset len: {len(self.dataframe)}")
-            
+
 #             # Also save filtered dataset
 #             filtered_hf_dir = os.path.join(self.dataset_dir, "filtered_with_uid_hf")
 #             filtered_parquet_path = os.path.join(self.dataset_dir, "filtered_with_uid.parquet")
-            
+
 #             print(f"Saving filtered dataset to {filtered_hf_dir}")
 #             self.dataframe.save_to_disk(filtered_hf_dir)
-            
+
 #             print(f"Saving filtered dataset as parquet to {filtered_parquet_path}")
 #             self.dataframe.to_parquet(filtered_parquet_path)
 
@@ -376,7 +376,6 @@ import copy
 import logging
 import os
 import re
-import uuid
 from collections import defaultdict
 from typing import List, Optional, Union
 
@@ -469,7 +468,7 @@ class RLHFDataset(Dataset):
 
         self.num_workers = config.get("filter_overlong_prompts_workers", max(1, os.cpu_count() // 4))
         self.num_workers = min(self.num_workers, os.cpu_count())
-        self.use_shm = config.get('use_shm', False)
+        self.use_shm = config.get("use_shm", False)
         self.chat_template_func = config.get("chat_template_func", None)
         self.need_tools_kwargs = config.get("need_tools_kwargs", False)
         self.filter_prompts = config.get("filter_prompts", True)
@@ -477,7 +476,7 @@ class RLHFDataset(Dataset):
         self.universal_id_key = config.get("universal_id_key", "universal_id")
         # Dataset directory for permanent storage
         self.dataset_dir = config.get("dataset_dir", "dataset")
-        
+
         self._download()
         self._read_files_and_tokenize()
 
@@ -510,17 +509,17 @@ class RLHFDataset(Dataset):
 
         # Save to permanent dataset folder instead of cache
         os.makedirs(self.dataset_dir, exist_ok=True)
-        
+
         # Save as both HuggingFace dataset and parquet
         hf_save_dir = os.path.join(self.dataset_dir, "processed_with_uid_hf")
         parquet_save_path = os.path.join(self.dataset_dir, "processed_with_uid.parquet")
-        
+
         print(f"Saving processed dataset with uid to {hf_save_dir}")
         self.dataframe.save_to_disk(hf_save_dir)
-        
+
         print(f"Saving processed dataset as parquet to {parquet_save_path}")
         self.dataframe.to_parquet(parquet_save_path)
-        
+
         # Also save to cache for compatibility
         cache_save_dir = os.path.join(self.cache_dir, "processed_with_uid")
         print(f"Also saving to cache: {cache_save_dir}")
@@ -537,14 +536,14 @@ class RLHFDataset(Dataset):
             )
 
             print(f"filter dataset len: {len(self.dataframe)}")
-            
+
             # Also save filtered dataset
             filtered_hf_dir = os.path.join(self.dataset_dir, "filtered_with_uid_hf")
             filtered_parquet_path = os.path.join(self.dataset_dir, "filtered_with_uid.parquet")
-            
+
             print(f"Saving filtered dataset to {filtered_hf_dir}")
             self.dataframe.save_to_disk(filtered_hf_dir)
-            
+
             print(f"Saving filtered dataset as parquet to {filtered_parquet_path}")
             self.dataframe.to_parquet(filtered_parquet_path)
 
@@ -675,6 +674,28 @@ class RLHFDataset(Dataset):
         # get prompts with chat template
         if self.return_full_prompt:
             row_dict["full_prompts"] = raw_prompt  # array of strings
+
+        # Parse extra_info if it's a string (convert to dictionary)
+        if isinstance(row_dict.get("extra_info"), str):
+            import ast
+
+            try:
+                row_dict["extra_info"] = ast.literal_eval(row_dict["extra_info"])
+            except (ValueError, SyntaxError):
+                row_dict["extra_info"] = {}
+        elif row_dict.get("extra_info") is None:
+            row_dict["extra_info"] = {}
+
+        # Parse reward_model if it's a string (convert to dictionary)
+        if isinstance(row_dict.get("reward_model"), str):
+            import ast
+
+            try:
+                row_dict["reward_model"] = ast.literal_eval(row_dict["reward_model"])
+            except (ValueError, SyntaxError):
+                row_dict["reward_model"] = {}
+        elif row_dict.get("reward_model") is None:
+            row_dict["reward_model"] = {}
 
         # add index for each prompt
         index = row_dict.get("extra_info", {}).get("index", 0)

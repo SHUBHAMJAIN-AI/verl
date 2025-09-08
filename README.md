@@ -145,9 +145,39 @@ verl is fast with:
 
 The performance is essential for on-policy RL algorithm. We have written a detailed [performance tuning guide](https://verl.readthedocs.io/en/latest/perf/perf_tuning.html) to help you optimize performance.
 
-## Upgrade to vLLM >= v0.8.2
+## Dependency Compatibility and Environment Setup
+
+### Option 1: Latest vLLM (>= v0.8.2) with Default Environment
 
 verl now supports vLLM>=0.8.2 when using FSDP as the training backend. Please refer to [this document](https://github.com/volcengine/verl/blob/main/docs/README_vllm0.8.md) for the installation guide and more information. Please avoid vllm 0.7.x, which contains bugs that may lead to OOMs and unexpected errors.
+
+### Option 2: Stable vLLM 0.6.3 Environment for Compatibility
+
+If you encounter Flash Attention or dependency compatibility issues with the latest vLLM versions, we recommend creating a separate environment with tested stable versions:
+
+```bash
+# Create stable environment
+conda create -n verl_stable python=3.10 -y
+conda activate verl_stable
+
+# Install compatible versions
+pip install torch==2.4.0 --index-url https://download.pytorch.org/whl/cu121
+pip install flash-attn==2.6.3 --no-build-isolation
+pip install vllm==0.6.3
+pip install numpy==1.26.4
+
+# Install verl
+cd /path/to/verl
+pip install -e .
+```
+
+**Tested Stable Dependency Versions:**
+- PyTorch 2.4.0 + CUDA 12.1
+- vLLM 0.6.3 (compatible)  
+- Flash Attention 2.6.3 (working)
+- NumPy 1.26.4
+
+This stable environment configuration resolves common Flash Attention import errors and dependency conflicts that may occur with newer versions.
 
 ## Use Latest SGLang
 

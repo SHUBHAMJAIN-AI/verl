@@ -1,8 +1,10 @@
 data:
   tokenizer: null
-  train_files: ~/data/rlhf/gsm8k/train.parquet
-  val_files: ~/data/rlhf/gsm8k/test.parquet
+  train_files: /root/verl/dataset/train_with_uid.parquet
+  val_files: /root/verl/dataset/test_with_uid.parquet
   prompt_key: prompt
+  reward_fn_key: data_source
+  universal_id_key: uid  # Use the uid column from your parquet files
   max_prompt_length: 512
   max_response_length: 512
   train_batch_size: 1024
@@ -11,6 +13,8 @@ data:
   return_raw_chat: False
   return_full_prompt: False
   shuffle: True
+  filter_overlong_prompts: True
+  truncation: error
 
 actor_rollout_ref:
   hybrid_engine: True

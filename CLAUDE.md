@@ -5,6 +5,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Core Commands
 
 ### Installation and Setup
+
+#### Option 1: Default Installation (Latest Versions)
 ```bash
 # Install main package
 pip install -e .
@@ -19,6 +21,36 @@ pre-commit install
 pip install -r requirements_sglang.txt  # For SGLang support
 pip install -r requirements-npu.txt    # For NPU support
 ```
+
+#### Option 2: Stable Environment Setup (Recommended for Compatibility)
+If you encounter Flash Attention import errors or dependency conflicts, create a separate stable environment:
+
+```bash
+# Create stable environment with tested dependency versions
+conda create -n verl_stable python=3.10 -y
+conda activate verl_stable
+
+# Install compatible versions that work together
+pip install torch==2.4.0 --index-url https://download.pytorch.org/whl/cu121
+pip install flash-attn==2.6.3 --no-build-isolation
+pip install vllm==0.6.3
+pip install numpy==1.26.4
+
+# Install verl in development mode
+pip install -e .
+
+# Install development dependencies
+pip install -r requirements.txt
+pre-commit install
+```
+
+**Tested Stable Versions:**
+- PyTorch 2.4.0 + CUDA 12.1
+- vLLM 0.6.3 (compatible)
+- Flash Attention 2.6.3 (working)
+- NumPy 1.26.4
+
+This stable configuration resolves Flash Attention import errors and other dependency conflicts that may occur with newer versions.
 
 ### Development Commands
 ```bash
@@ -203,3 +235,23 @@ python -c "import verl; print('Import successful')"
 - **Ray Connection Issues**: Check `ray status` and ensure cluster is properly initialized
 - **vLLM Version Conflicts**: Use vLLM >= 0.8.2, avoid 0.7.x versions
 - **Model Loading**: Use `weight_loader_registry.py` for custom weight loading patterns
+- **Flash Attention Import Errors**: Create stable environment with compatible versions (see Option 2 above)
+- **Dependency Conflicts**: Use the tested stable environment with specific version combinations
+
+### Flash Attention Troubleshooting
+If you encounter errors like "No module named 'flash_attn'" or version compatibility issues:
+
+1. **Quick Fix**: Use the stable environment setup (Option 2 above)
+2. **Manual Resolution**:
+   ```bash
+   # Create new environment to avoid conflicts
+   conda create -n verl_new python=3.10 -y
+   conda activate verl_new
+   
+   # Install in specific order to avoid conflicts
+   pip install torch==2.4.0 --index-url https://download.pytorch.org/whl/cu121
+   pip install flash-attn==2.6.3 --no-build-isolation
+   pip install vllm==0.6.3 numpy==1.26.4
+   pip install -e .
+   ```
+3. **Update Training Scripts**: Change conda environment name in your run scripts from `verl` to `verl_new` or `verl_stable`
