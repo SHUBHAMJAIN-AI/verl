@@ -102,7 +102,12 @@ def fit(self):
 
                         del gen_baseline_batch, gen_baseline_output
 
-                batch.non_tensor_batch["uid"] = np.array([str(uuid.uuid4()) for _ in range(len(batch.batch))], dtype=object)
+                # Preserve original UIDs if they exist, otherwise generate new ones
+                if "uid" not in batch.non_tensor_batch or batch.non_tensor_batch["uid"] is None:
+                    batch.non_tensor_batch["uid"] = np.array([str(uuid.uuid4()) for _ in range(len(batch.batch))], dtype=object)
+                    print(f"[DEBUG] Generated {len(batch.batch)} new UIDs for batch (split_monkey_patch)")
+                else:
+                    print(f"[DEBUG] Preserved {len(batch.non_tensor_batch['uid'])} original UIDs for batch (split_monkey_patch)")
                 # repeat to align with repeated responses in rollout
                 batch = batch.repeat(repeat_times=self.config.actor_rollout_ref.rollout.n, interleave=True)
                 batch = batch.union(gen_batch_output)
@@ -199,8 +204,20 @@ def fit(self):
                         self._save_checkpoint()
 
             # collect metrics
-            metrics.update(compute_data_metrics(batch=batch, use_critic=self.use_critic))
+            metrics.update(compute_data_metrics(batch=batch, use_critic=self.use_critic, step=self.global_steps, log_individual=True))
             metrics.update(compute_timing_metrics(batch=batch, timing_raw=timing_raw))
+
+            # HARDCODED: Force individual length logging for training steps
+            try:
+                from verl.trainer.ppo.metric_utils import log_individual_lengths_to_wandb_and_csv
+
+                print(f"[DEBUG] HARDCODED: Forcing individual length logging for training step {self.global_steps}")
+                log_individual_lengths_to_wandb_and_csv(batch=batch, step=self.global_steps, output_dir="outputs", universal_id_key="uid")
+            except Exception as e:
+                print(f"Warning: Failed to log individual lengths for training step {self.global_steps}: {e}")
+                import traceback
+
+                traceback.print_exc()
 
             # TODO: make a canonical logger that supports various backend
             logger.log(data=metrics, step=self.global_steps)

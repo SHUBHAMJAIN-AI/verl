@@ -39,7 +39,7 @@ from torchdata.stateful_dataloader import StatefulDataLoader
 from tqdm import tqdm
 
 from verl import DataProto
-from verl.protocol import DataProtoConfig, pad_dataproto_to_divisor, unpad_dataproto
+from verl.protocol import pad_dataproto_to_divisor, unpad_dataproto
 from verl.single_controller.base import Worker
 from verl.single_controller.ray import RayClassWithInitArgs, RayResourcePool, RayWorkerGroup
 from verl.single_controller.ray.base import create_colocated_worker_cls
@@ -49,8 +49,8 @@ from verl.trainer.ppo.metric_utils import (
     compute_data_metrics,
     compute_throughout_metrics,
     compute_timing_metrics,
-    process_validation_metrics,
     log_individual_lengths_to_wandb_and_csv,
+    process_validation_metrics,
 )
 from verl.trainer.ppo.reward import compute_reward, compute_reward_async
 from verl.utils.checkpoint.checkpoint_manager import BaseCheckpointManager, find_latest_ckpt_path
@@ -625,6 +625,113 @@ class RayPPOTrainer:
 
         print(f"Dumped generations to {filename}")
 
+    def _log_training_batch_examples(self, batch, gen_batch_output, rewards, step_num, num_examples=3):
+        """Log first N examples from training batch with detailed info"""
+
+        log_train_examples = self.config.trainer.get("log_train_examples", 0)
+        if log_train_examples == 0:
+            return
+
+        print(f"\n{'=' * 60}")
+        print(f"TRAINING STEP {step_num} BATCH EXAMPLES")
+        print(f"{'=' * 60}")
+
+        # Get the data we need
+        batch_size = len(batch.batch["attention_mask"])
+        num_to_show = min(num_examples, batch_size)
+
+        for i in range(num_to_show):
+            try:
+                # Get UID if available
+                uid = "unknown"
+                if "uid" in batch.non_tensor_batch and i < len(batch.non_tensor_batch["uid"]):
+                    uid = str(batch.non_tensor_batch["uid"][i])
+
+                # Get prompt from the generation batch if available
+                prompt_text = "N/A"
+                if "full_prompts" in gen_batch_output.non_tensor_batch and i < len(gen_batch_output.non_tensor_batch["full_prompts"]):
+                    prompt_text = str(gen_batch_output.non_tensor_batch["full_prompts"][i])[:100] + "..."
+
+                # Get response from the generation output
+                response_text = "N/A"
+                if "responses" in gen_batch_output.non_tensor_batch and i < len(gen_batch_output.non_tensor_batch["responses"]):
+                    response_text = str(gen_batch_output.non_tensor_batch["responses"][i])[:100] + "..."
+
+                # Get reward
+                reward_val = "N/A"
+                if rewards is not None and i < len(rewards):
+                    if hasattr(rewards, "item"):
+                        reward_val = f"{rewards[i].item():.3f}"
+                    else:
+                        reward_val = f"{rewards[i]:.3f}"
+
+                print(f"\nExample {i + 1}: UID={uid}")
+                print(f"  Prompt: {prompt_text}")
+                print(f"  Response: {response_text}")
+                print(f"  Reward: {reward_val}")
+
+            except Exception as e:
+                print(f"  Error logging example {i + 1}: {e}")
+
+        print(f"{'=' * 60}\n")
+
+    def _save_training_outputs(self, batch, gen_batch_output, rewards, step_num):
+        """Save complete training batch data to CSV file"""
+
+        save_training_outputs = self.config.trainer.get("save_training_outputs", False)
+        if not save_training_outputs:
+            return
+
+        try:
+            import os
+
+            import pandas as pd
+
+            # Create output directory
+            output_dir = self.config.trainer.get("training_output_dir", "training_outputs")
+            os.makedirs(output_dir, exist_ok=True)
+
+            # Prepare data for CSV
+            data_rows = []
+            batch_size = len(batch.batch["attention_mask"])
+
+            for i in range(batch_size):
+                row = {"step": step_num, "example_idx": i, "uid": "unknown", "prompt": "N/A", "response": "N/A", "reward": "N/A", "prompt_length": 0, "response_length": 0}
+
+                # Get UID
+                if "uid" in batch.non_tensor_batch and i < len(batch.non_tensor_batch["uid"]):
+                    row["uid"] = str(batch.non_tensor_batch["uid"][i])
+
+                # Get prompt
+                if "full_prompts" in gen_batch_output.non_tensor_batch and i < len(gen_batch_output.non_tensor_batch["full_prompts"]):
+                    prompt = str(gen_batch_output.non_tensor_batch["full_prompts"][i])
+                    row["prompt"] = prompt
+                    row["prompt_length"] = len(prompt)
+
+                # Get response
+                if "responses" in gen_batch_output.non_tensor_batch and i < len(gen_batch_output.non_tensor_batch["responses"]):
+                    response = str(gen_batch_output.non_tensor_batch["responses"][i])
+                    row["response"] = response
+                    row["response_length"] = len(response)
+
+                # Get reward
+                if rewards is not None and i < len(rewards):
+                    if hasattr(rewards, "item"):
+                        row["reward"] = float(rewards[i].item())
+                    else:
+                        row["reward"] = float(rewards[i])
+
+                data_rows.append(row)
+
+            # Save to CSV
+            df = pd.DataFrame(data_rows)
+            filename = os.path.join(output_dir, f"step_{step_num:04d}_training_batch.csv")
+            df.to_csv(filename, index=False)
+            print(f"Saved training batch data to {filename}")
+
+        except Exception as e:
+            print(f"Error saving training outputs: {e}")
+
     def _maybe_log_val_generations(self, inputs, outputs, scores):
         """Log a table of validation samples to the configured logger (wandb or swanlab)"""
 
@@ -632,6 +739,28 @@ class RayPPOTrainer:
 
         if generations_to_log == 0:
             return
+
+        # First log to console for debugging
+        print(f"\n{'=' * 60}")
+        print("VALIDATION BATCH EXAMPLES")
+        print(f"{'=' * 60}")
+
+        num_to_show = min(3, len(inputs))
+        for i in range(num_to_show):
+            try:
+                prompt = str(inputs[i])[:100] + "..." if len(str(inputs[i])) > 100 else str(inputs[i])
+                response = str(outputs[i])[:100] + "..." if len(str(outputs[i])) > 100 else str(outputs[i])
+                score = f"{scores[i]:.3f}" if hasattr(scores[i], "item") else str(scores[i])
+
+                print(f"\nValidation Example {i + 1}:")
+                print(f"  Prompt: {prompt}")
+                print(f"  Response: {response}")
+                print(f"  Score: {score}")
+
+            except Exception as e:
+                print(f"  Error logging validation example {i + 1}: {e}")
+
+        print(f"{'=' * 60}\n")
 
         import numpy as np
 
@@ -721,10 +850,10 @@ class RayPPOTrainer:
                 # Ensure we have a valid output directory for test validation files
                 test_output_dir = self.config.trainer.get("default_hdfs_dir") or "outputs"
                 log_individual_lengths_to_wandb_and_csv(
-                    test_batch, 
+                    test_batch,
                     step=f"test_step_{self.global_steps}",
                     output_dir=test_output_dir,
-                    universal_id_key="uid"  # Adjust if your test data uses different UID key
+                    universal_id_key="uid",  # Adjust if your test data uses different UID key
                 )
             except Exception as e:
                 print(f"Warning: Failed to log test individual lengths: {e}")
@@ -1044,7 +1173,12 @@ class RayPPOTrainer:
 
                             del gen_baseline_batch, gen_baseline_output
 
-                    batch.non_tensor_batch["uid"] = np.array([str(uuid.uuid4()) for _ in range(len(batch.batch))], dtype=object)
+                    # Preserve original UIDs if they exist, otherwise generate new ones
+                    if "uid" not in batch.non_tensor_batch or batch.non_tensor_batch["uid"] is None:
+                        batch.non_tensor_batch["uid"] = np.array([str(uuid.uuid4()) for _ in range(len(batch.batch))], dtype=object)
+                        print(f"[DEBUG] Generated {len(batch.batch)} new UIDs for batch")
+                    else:
+                        print(f"[DEBUG] Preserved {len(batch.non_tensor_batch['uid'])} original UIDs for batch")
                     # repeat to align with repeated responses in rollout
                     batch = batch.repeat(repeat_times=self.config.actor_rollout_ref.rollout.n, interleave=True)
                     batch = batch.union(gen_batch_output)
@@ -1071,6 +1205,14 @@ class RayPPOTrainer:
                             future_reward = compute_reward_async.remote(batch, self.config, self.tokenizer)
                         else:
                             reward_tensor, reward_extra_infos_dict = compute_reward(batch, self.reward_fn)
+
+                    # Log training batch examples and save outputs
+                    try:
+                        rewards_for_logging = reward_tensor if "reward_tensor" in locals() else None
+                        self._log_training_batch_examples(batch, gen_batch_output, rewards_for_logging, self.global_steps + 1)
+                        self._save_training_outputs(batch, gen_batch_output, rewards_for_logging, self.global_steps + 1)
+                    except Exception as e:
+                        print(f"Error in training logging: {e}")
 
                     # recompute old_log_probs
                     with _timer("old_log_prob", timing_raw):
@@ -1162,6 +1304,7 @@ class RayPPOTrainer:
                     if self.use_critic:
                         with _timer("update_critic", timing_raw):
                             critic_output = self.critic_wg.update_critic(batch)
+                        critic_output = critic_output.get()
                         critic_output_metrics = reduce_metrics(critic_output.meta_info["metrics"])
                         metrics.update(critic_output_metrics)
 
@@ -1171,6 +1314,7 @@ class RayPPOTrainer:
                         with _timer("update_actor", timing_raw):
                             batch.meta_info["multi_turn"] = self.config.actor_rollout_ref.rollout.multi_turn.enable
                             actor_output = self.actor_rollout_wg.update_actor(batch)
+                        actor_output = actor_output.get()
                         actor_output_metrics = reduce_metrics(actor_output.meta_info["metrics"])
                         metrics.update(actor_output_metrics)
 
@@ -1211,12 +1355,7 @@ class RayPPOTrainer:
                 )
                 # collect metrics
                 # metrics.update(compute_data_metrics(batch=batch, use_critic=self.use_critic))
-                metrics.update(compute_data_metrics(
-                    batch=batch, 
-                    use_critic=self.use_critic, 
-                    step=self.global_steps, 
-                    log_individual=True
-                ))
+                metrics.update(compute_data_metrics(batch=batch, use_critic=self.use_critic, step=self.global_steps, log_individual=True))
                 metrics.update(compute_timing_metrics(batch=batch, timing_raw=timing_raw))
                 # TODO: implement actual tflpo and theoretical tflpo
                 n_gpus = self.resource_pool_manager.get_n_gpus()
