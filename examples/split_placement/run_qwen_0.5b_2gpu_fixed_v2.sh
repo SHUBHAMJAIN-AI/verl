@@ -1,0 +1,74 @@
+#!/bin/bash
+set -x
+
+# RLHF PPO training with Qwen 0.5B on 2 GPUs using split placement
+# GPU 0: Actor + Rollout
+# GPU 1: Critic + Reference Policy
+# FIXED VERSION v2: Added validation, fixed learning rate scheduler, aligned configs
+
+# Activate conda environment with working dependencies
+source ~/miniconda3/etc/profile.d/conda.sh
+conda activate verl_new
+
+export CUDA_VISIBLE_DEVICES=0,1
+export PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:256
+
+PYTHONUNBUFFERED=1 python3 main_ppo_split.py \
+    --config-path=/root/verl/examples/split_placement/config \
+    --config-name=qwen_0.5b_2gpu_split \
+    algorithm.adv_estimator=gae \
+    data.train_files=/root/verl/dataset/train_with_uid.parquet \
+    data.val_files=/root/verl/dataset/test_with_uid.parquet \
+    data.train_batch_size=128 \
+    data.max_prompt_length=1024 \
+    data.max_response_length=2048 \
+    data.filter_overlong_prompts=True \
+    data.truncation=error \
+    data.universal_id_key=uid \
+    data.reward_fn_key=data_source \
+    actor_rollout_ref.model.path=Qwen/Qwen2.5-0.5B-Instruct \
+    actor_rollout_ref.actor.optim.lr=1e-6 \
+    actor_rollout_ref.actor.ppo_mini_batch_size=32 \
+    actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu=2 \
+    actor_rollout_ref.actor.ppo_max_token_len_per_gpu=16384 \
+    actor_rollout_ref.actor.fsdp_config.param_offload=False \
+    actor_rollout_ref.actor.fsdp_config.optimizer_offload=False \
+    +actor_rollout_ref.actor.loss_agg_mode=token-mean \
+    +actor_rollout_ref.actor.clip_ratio_low=0.2 \
+    +actor_rollout_ref.actor.clip_ratio_high=0.2 \
+    +actor_rollout_ref.actor.checkpoint.contents=['model','optimizer','extra'] \
+    actor_rollout_ref.rollout.tensor_model_parallel_size=1 \
+    actor_rollout_ref.rollout.gpu_memory_utilization=0.6 \
+    actor_rollout_ref.rollout.max_num_batched_tokens=2048 \
+    actor_rollout_ref.rollout.max_num_seqs=256 \
+    +actor_rollout_ref.rollout.max_model_len=2048 \
+    +actor_rollout_ref.rollout.mode=sync \
+    actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu=2 \
+    +actor_rollout_ref.rollout.val_kwargs.do_sample=false \
+    +actor_rollout_ref.rollout.val_kwargs.temperature=0 \
+    +actor_rollout_ref.rollout.val_kwargs.top_p=1.0 \
+    +actor_rollout_ref.rollout.val_kwargs.top_k=-1 \
+    +actor_rollout_ref.rollout.val_kwargs.n=1 \
+    +actor_rollout_ref.rollout.multi_turn.enable=false \
+    +critic.rollout_n=1 \
+    +critic.loss_agg_mode=token-mean \
+    +critic.checkpoint.contents=['model','optimizer','extra'] \
+    critic.model.path=Qwen/Qwen2.5-0.5B-Instruct \
+    critic.optim.lr=1e-5 \
+    critic.ppo_micro_batch_size_per_gpu=2 \
+    critic.ppo_max_token_len_per_gpu=32768 \
+    critic.model.fsdp_config.param_offload=False \
+    critic.model.fsdp_config.optimizer_offload=False \
+    algorithm.use_kl_in_reward=False \
+    trainer.critic_warmup=0 \
+    trainer.logger=['console','wandb'] \
+    trainer.project_name='verl_qwen_2gpu' \
+    trainer.experiment_name='qwen_0.5b_actor_0.5b_critic_split_v5' \
+    trainer.n_gpus_per_node=2 \
+    trainer.nnodes=1 \
+    trainer.total_epochs=1 \
+    trainer.test_freq=10 \
+    trainer.log_val_generations=10 \
+    trainer.log_train_examples=1 \
+    trainer.save_freq=10 $@ \
+    2>&1 | tee verl_qwen0.5b_split_placement_fixed_v5.log
