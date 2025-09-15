@@ -7,18 +7,18 @@ set -x
 # FIXED VERSION v2: Added validation, fixed learning rate scheduler, aligned configs
 
 # Activate conda environment with working dependencies
-source ~/miniconda3/etc/profile.d/conda.sh
-conda activate verl_new
+source /root/miniconda/etc/profile.d/conda.sh
+conda activate verl_stable
 
 export CUDA_VISIBLE_DEVICES=0,1
 export PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:256
 
 PYTHONUNBUFFERED=1 python3 main_ppo_split.py \
-    --config-path=/root/verl/examples/split_placement/config \
+    --config-path=/workspace/verl/examples/split_placement/config \
     --config-name=qwen_0.5b_2gpu_split \
     algorithm.adv_estimator=gae \
-    data.train_files=/root/verl/dataset/train_with_uid.parquet \
-    data.val_files=/root/verl/dataset/test_with_uid.parquet \
+    data.train_files=/workspace/dataset/train_with_uid.parquet \
+    data.val_files=/workspace/dataset/test_with_uid.parquet \
     data.train_batch_size=128 \
     data.max_prompt_length=1024 \
     data.max_response_length=2048 \
@@ -69,6 +69,5 @@ PYTHONUNBUFFERED=1 python3 main_ppo_split.py \
     trainer.total_epochs=1 \
     trainer.test_freq=10 \
     trainer.log_val_generations=10 \
-    trainer.log_train_examples=1 \
     trainer.save_freq=10 $@ \
     2>&1 | tee verl_qwen0.5b_split_placement_fixed_v5.log
