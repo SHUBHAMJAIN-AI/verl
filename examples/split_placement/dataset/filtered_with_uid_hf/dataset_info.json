@@ -1,0 +1,58 @@
+{
+  "builder_name": "parquet",
+  "citation": "",
+  "config_name": "default",
+  "dataset_name": "parquet",
+  "dataset_size": 1390922,
+  "description": "",
+  "download_checksums": {
+    "/root/verl/dataset/test_with_uid.parquet": {
+      "num_bytes": 663189,
+      "checksum": null
+    }
+  },
+  "download_size": 663189,
+  "features": {
+    "data_source": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "prompt": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "ability": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "reward_model": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "extra_info": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "uid": {
+      "dtype": "string",
+      "_type": "Value"
+    }
+  },
+  "homepage": "",
+  "license": "",
+  "size_in_bytes": 2054111,
+  "splits": {
+    "train": {
+      "name": "train",
+      "num_bytes": 1390922,
+      "num_examples": 1319,
+      "dataset_name": "parquet"
+    }
+  },
+  "version": {
+    "version_str": "0.0.0",
+    "major": 0,
+    "minor": 0,
+    "patch": 0
+  }
+}

@@ -4,6 +4,7 @@ set -x
 # RLHF PPO training with Qwen 0.5B on 2 GPUs using split placement
 # GPU 0: Actor + Rollout
 # GPU 1: Critic + Reference Policy
+# FIXED VERSION: Corrected learning rates and scheduler settings
 
 # Activate conda environment with working dependencies
 source ~/miniconda3/etc/profile.d/conda.sh
@@ -62,9 +63,9 @@ PYTHONUNBUFFERED=1 python3 main_ppo_split.py \
     trainer.critic_warmup=0 \
     trainer.logger=['console','wandb'] \
     trainer.project_name='verl_qwen_2gpu' \
-    trainer.experiment_name='qwen_0.5b_split_test' \
+    trainer.experiment_name='qwen_0.5b_split_fixed' \
     trainer.n_gpus_per_node=2 \
     trainer.nnodes=1 \
-    trainer.total_epochs=3 \
+    trainer.total_epochs=5 \
     trainer.save_freq=5 $@ \
-    2>&1 | tee verl_qwen0.5b_split_placement_run2.log
+    2>&1 | tee verl_qwen0.5b_split_placement_fixed.log
