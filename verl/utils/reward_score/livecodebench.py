@@ -58,7 +58,7 @@ def compute_score(solution_str, ground_truth) -> float:
 
     Args:
         solution_str: Generated solution containing Python code
-        ground_truth: Compressed test cases in base64 format
+        ground_truth: Dictionary containing 'ground_truth' key with compressed test cases, or string with test cases
 
     Returns:
         float: 1.0 if all test cases pass, 0.0 otherwise
@@ -66,12 +66,31 @@ def compute_score(solution_str, ground_truth) -> float:
     # Extract Python code from solution
     solution = solution_str.split("```python")[-1].split("```")[0]
 
+    # Handle ground_truth format - it can be a dict or string
+    if isinstance(ground_truth, dict):
+        if "ground_truth" in ground_truth:
+            test_cases_data = ground_truth["ground_truth"]
+        else:
+            print(f"Error: Dictionary ground_truth missing 'ground_truth' key. Keys: {list(ground_truth.keys())}")
+            return 0.0
+    else:
+        test_cases_data = ground_truth
+
     # extract test cases
     try:
-        in_outs = json.loads(ground_truth)
+        if isinstance(test_cases_data, str):
+            # Try direct JSON parse first
+            in_outs = json.loads(test_cases_data)
+        else:
+            print(f"Error: test_cases_data is not a string: {type(test_cases_data)}")
+            return 0.0
     except Exception as e:
-        print(f"Error loading test cases: {e}")
-        in_outs = json.loads(pickle.loads(zlib.decompress(base64.b64decode(ground_truth.encode("utf-8")))))
+        # If JSON parsing fails, try decompression method
+        try:
+            in_outs = json.loads(pickle.loads(zlib.decompress(base64.b64decode(test_cases_data.encode("utf-8")))))
+        except Exception as e2:
+            print(f"Error loading test cases - JSON: {e}, Decompression: {e2}")
+            return 0.0
 
     success = False
     try:

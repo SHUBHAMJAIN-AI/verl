@@ -73,13 +73,13 @@ PYTHONUNBUFFERED=1 python3 main_ppo_split.py \
     algorithm.kl_ctrl.kl_coef=0.001 \
     trainer.logger='[console,wandb]' \
     trainer.project_name=verl_livecodebench \
-    trainer.experiment_name=livecodebench_split_qwen05b \
+    trainer.experiment_name=livecodebench_split_qwen05b_1 \
     trainer.n_gpus_per_node=2 \
     trainer.nnodes=1 \
     trainer.save_freq=5 \
     trainer.test_freq=5 \
     trainer.total_epochs=10 \
-    2>&1 | tee verl_livecodebench_split_training.log
+    2>&1 | tee verl_livecodebench_split_training_1.log
 
 echo "LiveCodeBench PPO training completed!"
 echo "Log file: verl_livecodebench_split_training.log"

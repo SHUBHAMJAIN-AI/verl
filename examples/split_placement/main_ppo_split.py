@@ -22,7 +22,7 @@ from split_monkey_patch import fit
 
 from verl import DataProto
 from verl.trainer.ppo.ray_trainer import RayPPOTrainer
-from verl.utils.reward_score import gsm8k, math
+from verl.utils.reward_score import gpqa, gsm8k, livecodebench, math
 
 
 def _select_rm_score_fn(data_source):
@@ -30,6 +30,10 @@ def _select_rm_score_fn(data_source):
         return gsm8k.compute_score
     elif data_source == "lighteval/MATH":
         return math.compute_score
+    elif data_source.startswith("Idavidrein/gpqa"):
+        return gpqa.compute_score
+    elif data_source in ["livecodebench/code_generation_lite", "livecodebench/code_generation"]:
+        return livecodebench.compute_score
     else:
         raise NotImplementedError
 
