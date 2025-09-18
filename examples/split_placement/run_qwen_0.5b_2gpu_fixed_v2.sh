@@ -69,5 +69,5 @@ PYTHONUNBUFFERED=1 python3 main_ppo_split.py \
     trainer.total_epochs=1 \
     trainer.test_freq=10 \
     trainer.log_val_generations=10 \
-    trainer.save_freq=10 $@ \
+    trainer.save_freq=0 $@ \
     2>&1 | tee verl_qwen0.5b_split_placement_fixed_v6.log

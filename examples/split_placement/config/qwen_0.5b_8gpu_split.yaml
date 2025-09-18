@@ -59,7 +59,7 @@ actor_rollout_ref:
       param_offload: False
       wrap_policy:
         min_num_params: 0
-      fsdp_size: 6  # Same as actor (0-5)
+      fsdp_size: 2  # With critic (6-7)
     log_prob_micro_batch_size: null
     log_prob_micro_batch_size_per_gpu: null
     log_prob_use_dynamic_bsz: ${actor_rollout_ref.actor.use_dynamic_bsz}

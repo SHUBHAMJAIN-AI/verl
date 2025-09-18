@@ -1,7 +1,7 @@
 data:
   tokenizer: null
-  train_files: /root/verl/dataset/livecodebench/train_with_uid.parquet
-  val_files: /root/verl/dataset/livecodebench/test_with_uid.parquet
+  train_files: /workspace/verl/dataset/livecodebench/train_with_uid.parquet
+  val_files: /workspace/verl/dataset/livecodebench/test_with_uid.parquet
   prompt_key: prompt
   reward_fn_key: data_source
   universal_id_key: uid  # Use the uid column from LiveCodeBench parquet files

@@ -4,14 +4,14 @@
       "filename": "data-00000-of-00001.arrow"
     }
   ],
-  "_fingerprint": "f63fbcf1a20eabe0",
+  "_fingerprint": "896eed6e407ef4d2",
   "_format_columns": [
+    "uid",
     "data_source",
     "prompt",
     "ability",
     "reward_model",
-    "extra_info",
-    "uid"
+    "extra_info"
   ],
   "_format_kwargs": {},
   "_format_type": null,

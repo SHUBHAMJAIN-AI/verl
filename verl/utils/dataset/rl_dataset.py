@@ -560,7 +560,18 @@ class RLHFDataset(Dataset):
         return len(self.dataframe)
 
     def _build_messages(self, example: dict):
-        messages: list = example.pop(self.prompt_key)
+        messages_raw = example.pop(self.prompt_key)
+
+        # Parse prompt if it's a string (convert to list)
+        if isinstance(messages_raw, str):
+            import ast
+            try:
+                messages: list = ast.literal_eval(messages_raw)
+            except (ValueError, SyntaxError):
+                # Fallback: treat as plain text message
+                messages = [{"role": "user", "content": messages_raw}]
+        else:
+            messages: list = messages_raw
 
         if self.image_key in example or self.video_key in example:
             for message in messages:

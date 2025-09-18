@@ -3,49 +3,86 @@
   "citation": "",
   "config_name": "default",
   "dataset_name": "parquet",
-  "dataset_size": 1390922,
+  "dataset_size": 75547028,
   "description": "",
   "download_checksums": {
-    "/root/verl/dataset/test_with_uid.parquet": {
-      "num_bytes": 663189,
+    "/workspace/verl/dataset/livecodebench/test_with_uid.parquet": {
+      "num_bytes": 74377297,
       "checksum": null
     }
   },
-  "download_size": 663189,
+  "download_size": 74377297,
   "features": {
+    "uid": {
+      "dtype": "string",
+      "_type": "Value"
+    },
     "data_source": {
       "dtype": "string",
       "_type": "Value"
     },
     "prompt": {
-      "dtype": "string",
-      "_type": "Value"
+      "feature": {
+        "content": {
+          "dtype": "string",
+          "_type": "Value"
+        },
+        "role": {
+          "dtype": "string",
+          "_type": "Value"
+        }
+      },
+      "_type": "List"
     },
     "ability": {
       "dtype": "string",
       "_type": "Value"
     },
     "reward_model": {
-      "dtype": "string",
-      "_type": "Value"
+      "ground_truth": {
+        "dtype": "string",
+        "_type": "Value"
+      },
+      "style": {
+        "dtype": "string",
+        "_type": "Value"
+      }
     },
     "extra_info": {
-      "dtype": "string",
-      "_type": "Value"
-    },
-    "uid": {
-      "dtype": "string",
-      "_type": "Value"
+      "contest_date": {
+        "dtype": "string",
+        "_type": "Value"
+      },
+      "difficulty": {
+        "dtype": "string",
+        "_type": "Value"
+      },
+      "index": {
+        "dtype": "int64",
+        "_type": "Value"
+      },
+      "platform": {
+        "dtype": "string",
+        "_type": "Value"
+      },
+      "question_id": {
+        "dtype": "string",
+        "_type": "Value"
+      },
+      "split": {
+        "dtype": "string",
+        "_type": "Value"
+      }
     }
   },
   "homepage": "",
   "license": "",
-  "size_in_bytes": 2054111,
+  "size_in_bytes": 149924325,
   "splits": {
     "train": {
       "name": "train",
-      "num_bytes": 1390922,
-      "num_examples": 1319,
+      "num_bytes": 75547028,
+      "num_examples": 34,
       "dataset_name": "parquet"
     }
   },

@@ -76,7 +76,7 @@ PYTHONUNBUFFERED=1 python3 main_ppo_split.py \
     trainer.experiment_name=livecodebench_3b_2gpu_split \
     trainer.n_gpus_per_node=2 \
     trainer.nnodes=1 \
-    trainer.save_freq=5 \
+    trainer.save_freq=0 \
     trainer.test_freq=5 \
     trainer.total_epochs=10 \
     2>&1 | tee verl_livecodebench_3b_2gpu_training.log

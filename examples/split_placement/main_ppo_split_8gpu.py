@@ -15,8 +15,8 @@
 8-GPU Split Placement PPO Training
 
 GPU allocation:
-- GPUs 0-5: Actor + Rollout + Reference (6 GPUs)
-- GPUs 6-7: Critic (2 GPUs)
+- GPUs 0-3: Actor + Rollout (4 GPUs)
+- GPUs 4-7: Critic + Reference (4 GPUs)
 
 Note that we don't combine the main with ray_trainer as ray_trainer is used by other main.
 """
@@ -28,7 +28,7 @@ from split_monkey_patch import fit
 
 from verl import DataProto
 from verl.trainer.ppo.ray_trainer import RayPPOTrainer
-from verl.utils.reward_score import gsm8k, math
+from verl.utils.reward_score import gpqa, gsm8k, livecodebench, math
 
 
 def _select_rm_score_fn(data_source):
@@ -36,6 +36,10 @@ def _select_rm_score_fn(data_source):
         return gsm8k.compute_score
     elif data_source == "lighteval/MATH":
         return math.compute_score
+    elif data_source.startswith("Idavidrein/gpqa"):
+        return gpqa.compute_score
+    elif data_source in ["livecodebench/code_generation_lite", "livecodebench/code_generation"]:
+        return livecodebench.compute_score
     else:
         raise NotImplementedError
 
@@ -154,29 +158,29 @@ def main_task(config):
     }
 
     # NOTE: 8-GPU split placement configuration
-    actor_rollout_ref_pool_id = "actor_rollout_ref_pool"
-    critic_pool_id = "critic_pool"
+    actor_rollout_pool_id = "actor_rollout_pool"
+    critic_ref_pool_id = "critic_ref_pool"
 
-    # 8-GPU allocation: 6 GPUs for actor+rollout+reference, 2 GPUs for critic
+    # 8-GPU allocation: 4 GPUs for actor+rollout, 4 GPUs for critic+reference
     resource_pool_spec = {
-        actor_rollout_ref_pool_id: [6],  # 6 GPUs for actor+rollout+reference (GPUs 0-5)
-        critic_pool_id: [2],  # 2 GPUs for critic (GPUs 6-7)
+        actor_rollout_pool_id: [4],  # 4 GPUs for actor+rollout (GPUs 0-3)
+        critic_ref_pool_id: [4],  # 4 GPUs for critic+reference (GPUs 4-7)
     }
 
     print(f"8-GPU resource_pool_spec: {resource_pool_spec}")
     print("GPU Allocation:")
-    print("  GPUs 0-5: Actor + Rollout + Reference (6 GPUs)")
-    print("  GPUs 6-7: Critic (2 GPUs)")
+    print("  GPUs 0-3: Actor + Rollout (4 GPUs)")
+    print("  GPUs 4-7: Critic + Reference (4 GPUs)")
 
     mapping = {
-        Role.ActorRollout: actor_rollout_ref_pool_id,
-        Role.Critic: critic_pool_id,
+        Role.ActorRollout: actor_rollout_pool_id,
+        Role.Critic: critic_ref_pool_id,
     }
 
-    # use reference model
+    # use reference model - assign to critic+reference pool
     if config.algorithm.use_kl_in_reward or config.actor_rollout_ref.actor.use_kl_loss:
         role_worker_mapping[Role.RefPolicy] = ray.remote(ActorRolloutRefWorker)
-        mapping[Role.RefPolicy] = actor_rollout_ref_pool_id
+        mapping[Role.RefPolicy] = critic_ref_pool_id
 
     # we should adopt a multi-source reward function here
     # - for rule-based rm, we directly call a reward score
@@ -192,7 +196,7 @@ def main_task(config):
         else:
             raise NotImplementedError
         role_worker_mapping[Role.RewardModel] = ray.remote(RewardModelWorker)
-        mapping[Role.RewardModel] = critic_pool_id
+        mapping[Role.RewardModel] = critic_ref_pool_id
 
     reward_fn = RewardManager(tokenizer=tokenizer, num_examine=0)
 

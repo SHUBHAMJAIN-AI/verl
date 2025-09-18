@@ -152,23 +152,23 @@ def main_task(config):
     }
 
     # NOTE: initialze two resource pool
-    actor_rollout_ref_pool_id = "actor_rollout_ref_pool"
-    critic_pool_id = "critic_pool"
-    # New logic: GPU 0 for actor+rollout, GPU 1 for critic+reference
+    actor_rollout_pool_id = "actor_rollout_pool"
+    critic_ref_pool_id = "critic_ref_pool"
+    # 8-GPU Split Placement: GPUs 0-5 for actor+rollout, GPUs 6-7 for critic+reference
     resource_pool_spec = {
-        actor_rollout_ref_pool_id: [1],  # 1 GPU for actor+rollout
-        critic_pool_id: [1],  # 1 GPU for critic+reference
+        actor_rollout_pool_id: [6],  # 6 GPUs for actor+rollout (GPUs 0-5)
+        critic_ref_pool_id: [2],  # 2 GPUs for critic+reference (GPUs 6-7)
     }
     print(f"resource_pool_spec: {resource_pool_spec}")
     mapping = {
-        Role.ActorRollout: actor_rollout_ref_pool_id,
-        Role.Critic: critic_pool_id,
+        Role.ActorRollout: actor_rollout_pool_id,
+        Role.Critic: critic_ref_pool_id,
     }
 
-    # use reference model
+    # use reference model - assign to critic+reference pool
     if config.algorithm.use_kl_in_reward or config.actor_rollout_ref.actor.use_kl_loss:
         role_worker_mapping[Role.RefPolicy] = ray.remote(ActorRolloutRefWorker)
-        mapping[Role.RefPolicy] = actor_rollout_ref_pool_id
+        mapping[Role.RefPolicy] = critic_ref_pool_id
 
     # we should adopt a multi-source reward function here
     # - for rule-based rm, we directly call a reward score
@@ -184,7 +184,7 @@ def main_task(config):
         else:
             raise NotImplementedError
         role_worker_mapping[Role.RewardModel] = ray.remote(RewardModelWorker)
-        mapping[Role.RewardModel] = critic_pool_id
+        mapping[Role.RewardModel] = critic_ref_pool_id
 
     reward_fn = RewardManager(tokenizer=tokenizer, num_examine=0)
 

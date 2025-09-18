@@ -3,7 +3,7 @@ set -x
 
 # RLHF PPO training with Qwen 0.5B on 8 GPUs using split placement
 # GPUs 0-5: Actor + Rollout (6 GPUs with tensor parallelism)
-# GPUs 6-7: Critic + Reference Policy (2 GPUs)
+# GPUs 6-7: Critic + Reference (2 GPUs)
 # Optimized for high throughput training with better GPU utilization
 
 # Activate conda environment with working dependencies
@@ -39,7 +39,7 @@ PYTHONUNBUFFERED=1 python3 main_ppo_split.py \
     +actor_rollout_ref.actor.clip_ratio_low=0.2 \
     +actor_rollout_ref.actor.clip_ratio_high=0.2 \
     +actor_rollout_ref.actor.checkpoint.contents=['model','optimizer','extra'] \
-    actor_rollout_ref.ref.fsdp_config.fsdp_size=6 \
+    actor_rollout_ref.ref.fsdp_config.fsdp_size=2 \
     actor_rollout_ref.rollout.tensor_model_parallel_size=6 \
     actor_rollout_ref.rollout.gpu_memory_utilization=0.8 \
     actor_rollout_ref.rollout.max_num_batched_tokens=8192 \
