@@ -1,35 +1,35 @@
 #!/bin/bash
 set -x
 
-# RLHF PPO training with Qwen 0.5B on 2 GPUs using split placement
+# RLHF PPO training with Qwen 1.5B on 2 GPUs using split placement
 # GPU 0: Actor + Rollout
 # GPU 1: Critic + Reference Policy
 
 # Activate conda environment with working dependencies
-source /root/miniconda/etc/profile.d/conda.sh
-conda activate verl_stable
+source ~/miniconda3/etc/profile.d/conda.sh
+conda activate verl_new
 
 export CUDA_VISIBLE_DEVICES=0,1
-export PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:256
+export PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:512
 
 PYTHONUNBUFFERED=1 python3 main_ppo_split.py \
-    --config-path=/workspace/verl/examples/split_placement/config \
+    --config-path=/root/verl/examples/split_placement/config \
     --config-name=qwen_0.5b_2gpu_split \
     algorithm.adv_estimator=gae \
-    data.train_files=/workspace/dataset/train_with_uid.parquet \
-    data.val_files=/workspace/dataset/test_with_uid.parquet \
-    data.train_batch_size=512 \
+    data.train_files=/root/verl/dataset/train_with_uid.parquet \
+    data.val_files=/root/verl/dataset/test_with_uid.parquet \
+    data.train_batch_size=96 \
     data.max_prompt_length=512 \
-    data.max_response_length=512 \
+    data.max_response_length=1024 \
     data.filter_overlong_prompts=True \
     data.truncation=error \
     data.universal_id_key=uid \
     data.reward_fn_key=data_source \
-    actor_rollout_ref.model.path=Qwen/Qwen2.5-0.5B-Instruct \
-    actor_rollout_ref.actor.optim.lr=5e-6 \
-    actor_rollout_ref.actor.ppo_mini_batch_size=128 \
-    actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu=8 \
-    actor_rollout_ref.actor.ppo_max_token_len_per_gpu=4096 \
+    actor_rollout_ref.model.path=Qwen/Qwen2.5-1.5B-Instruct \
+    actor_rollout_ref.actor.optim.lr=1e-6 \
+    actor_rollout_ref.actor.ppo_mini_batch_size=48 \
+    actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu=2 \
+    actor_rollout_ref.actor.ppo_max_token_len_per_gpu=3072 \
     actor_rollout_ref.actor.fsdp_config.param_offload=False \
     actor_rollout_ref.actor.fsdp_config.optimizer_offload=False \
     +actor_rollout_ref.actor.loss_agg_mode=token-mean \
@@ -37,12 +37,12 @@ PYTHONUNBUFFERED=1 python3 main_ppo_split.py \
     +actor_rollout_ref.actor.clip_ratio_high=0.2 \
     +actor_rollout_ref.actor.checkpoint.contents=['model','optimizer','extra'] \
     actor_rollout_ref.rollout.tensor_model_parallel_size=1 \
-    actor_rollout_ref.rollout.gpu_memory_utilization=0.6 \
-    actor_rollout_ref.rollout.max_num_batched_tokens=2048 \
-    actor_rollout_ref.rollout.max_num_seqs=256 \
-    +actor_rollout_ref.rollout.max_model_len=2048 \
+    actor_rollout_ref.rollout.gpu_memory_utilization=0.8 \
+    actor_rollout_ref.rollout.max_num_batched_tokens=1536 \
+    actor_rollout_ref.rollout.max_num_seqs=192 \
+    +actor_rollout_ref.rollout.max_model_len=1536 \
     +actor_rollout_ref.rollout.mode=sync \
-    actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu=8 \
+    actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu=6 \
     +actor_rollout_ref.rollout.val_kwargs.do_sample=false \
     +actor_rollout_ref.rollout.val_kwargs.temperature=0 \
     +actor_rollout_ref.rollout.val_kwargs.top_p=1.0 \
@@ -52,19 +52,19 @@ PYTHONUNBUFFERED=1 python3 main_ppo_split.py \
     +critic.rollout_n=1 \
     +critic.loss_agg_mode=token-mean \
     +critic.checkpoint.contents=['model','optimizer','extra'] \
-    critic.model.path=Qwen/Qwen2.5-0.5B-Instruct \
-    critic.optim.lr=1e-5 \
-    critic.ppo_micro_batch_size_per_gpu=16 \
-    critic.ppo_max_token_len_per_gpu=16384 \
+    critic.model.path=Qwen/Qwen2.5-1.5B-Instruct \
+    critic.optim.lr=2e-6 \
+    critic.ppo_micro_batch_size_per_gpu=4 \
+    critic.ppo_max_token_len_per_gpu=6144 \
     critic.model.fsdp_config.param_offload=False \
     critic.model.fsdp_config.optimizer_offload=False \
     algorithm.use_kl_in_reward=False \
     trainer.critic_warmup=0 \
     trainer.logger=['console','wandb'] \
     trainer.project_name='verl_qwen_2gpu' \
-    trainer.experiment_name='qwen_0.5b_split_test' \
+    trainer.experiment_name='qwen_1.5b_split_test' \
     trainer.n_gpus_per_node=2 \
     trainer.nnodes=1 \
     trainer.total_epochs=3 \
     trainer.save_freq=5 $@ \
-    2>&1 | tee verl_qwen0.5b_split_placement_run2.log
+    2>&1 | tee verl_qwen1.5b_split_placement_run1.log

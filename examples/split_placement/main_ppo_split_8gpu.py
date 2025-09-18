@@ -12,6 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """
+8-GPU Split Placement PPO Training
+
+GPU allocation:
+- GPUs 0-5: Actor + Rollout + Reference (6 GPUs)
+- GPUs 6-7: Critic (2 GPUs)
+
 Note that we don't combine the main with ray_trainer as ray_trainer is used by other main.
 """
 
@@ -22,7 +28,7 @@ from split_monkey_patch import fit
 
 from verl import DataProto
 from verl.trainer.ppo.ray_trainer import RayPPOTrainer
-from verl.utils.reward_score import gpqa, gsm8k, livecodebench, math
+from verl.utils.reward_score import gsm8k, math
 
 
 def _select_rm_score_fn(data_source):
@@ -30,10 +36,6 @@ def _select_rm_score_fn(data_source):
         return gsm8k.compute_score
     elif data_source == "lighteval/MATH":
         return math.compute_score
-    elif data_source.startswith("Idavidrein/gpqa"):
-        return gpqa.compute_score
-    elif data_source in ["livecodebench/code_generation_lite", "livecodebench/code_generation"]:
-        return livecodebench.compute_score
     else:
         raise NotImplementedError
 
@@ -151,15 +153,21 @@ def main_task(config):
         Role.Critic: ray.remote(CriticWorker),
     }
 
-    # NOTE: initialze two resource pool
+    # NOTE: 8-GPU split placement configuration
     actor_rollout_ref_pool_id = "actor_rollout_ref_pool"
     critic_pool_id = "critic_pool"
-    # New logic: GPU 0 for actor+rollout, GPU 1 for critic+reference
+
+    # 8-GPU allocation: 6 GPUs for actor+rollout+reference, 2 GPUs for critic
     resource_pool_spec = {
-        actor_rollout_ref_pool_id: [1],  # 1 GPU for actor+rollout
-        critic_pool_id: [1],  # 1 GPU for critic+reference
+        actor_rollout_ref_pool_id: [6],  # 6 GPUs for actor+rollout+reference (GPUs 0-5)
+        critic_pool_id: [2],  # 2 GPUs for critic (GPUs 6-7)
     }
-    print(f"resource_pool_spec: {resource_pool_spec}")
+
+    print(f"8-GPU resource_pool_spec: {resource_pool_spec}")
+    print("GPU Allocation:")
+    print("  GPUs 0-5: Actor + Rollout + Reference (6 GPUs)")
+    print("  GPUs 6-7: Critic (2 GPUs)")
+
     mapping = {
         Role.ActorRollout: actor_rollout_ref_pool_id,
         Role.Critic: critic_pool_id,

@@ -63,11 +63,11 @@ PYTHONUNBUFFERED=1 python3 main_ppo_split.py \
     trainer.critic_warmup=0 \
     trainer.logger=['console','wandb'] \
     trainer.project_name='verl_qwen_2gpu' \
-    trainer.experiment_name='qwen_0.5b_actor_0.5b_critic_split_v5' \
+    trainer.experiment_name='qwen_0.5b_actor_0.5b_critic_split_v6' \
     trainer.n_gpus_per_node=2 \
     trainer.nnodes=1 \
     trainer.total_epochs=1 \
     trainer.test_freq=10 \
     trainer.log_val_generations=10 \
     trainer.save_freq=10 $@ \
-    2>&1 | tee verl_qwen0.5b_split_placement_fixed_v5.log
+    2>&1 | tee verl_qwen0.5b_split_placement_fixed_v6.log

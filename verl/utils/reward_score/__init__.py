@@ -83,6 +83,14 @@ def default_compute_score(data_source, solution_str, ground_truth, extra_info=No
         from . import search_r1_like_qa_em
 
         res = search_r1_like_qa_em.compute_score(solution_str, ground_truth)
+    elif data_source.startswith("Idavidrein/gpqa"):
+        from . import gpqa
+
+        res = gpqa.compute_score(solution_str, ground_truth)
+    elif data_source in ["livecodebench/code_generation_lite", "livecodebench/code_generation"]:
+        from . import livecodebench
+
+        res = livecodebench.compute_score(solution_str, ground_truth)
     else:
         raise NotImplementedError(f"Reward function is not implemented for {data_source=}")
 

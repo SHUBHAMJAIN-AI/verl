@@ -4,20 +4,21 @@ set -x
 # RLHF PPO training with Qwen 0.5B on 2 GPUs using split placement
 # GPU 0: Actor + Rollout
 # GPU 1: Critic + Reference Policy
+# FIXED VERSION: Corrected learning rates and scheduler settings
 
 # Activate conda environment with working dependencies
-source /root/miniconda/etc/profile.d/conda.sh
-conda activate verl_stable
+source ~/miniconda3/etc/profile.d/conda.sh
+conda activate verl_new
 
 export CUDA_VISIBLE_DEVICES=0,1
 export PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:256
 
 PYTHONUNBUFFERED=1 python3 main_ppo_split.py \
-    --config-path=/workspace/verl/examples/split_placement/config \
+    --config-path=/root/verl/examples/split_placement/config \
     --config-name=qwen_0.5b_2gpu_split \
     algorithm.adv_estimator=gae \
-    data.train_files=/workspace/dataset/train_with_uid.parquet \
-    data.val_files=/workspace/dataset/test_with_uid.parquet \
+    data.train_files=/root/verl/dataset/train_with_uid.parquet \
+    data.val_files=/root/verl/dataset/test_with_uid.parquet \
     data.train_batch_size=512 \
     data.max_prompt_length=512 \
     data.max_response_length=512 \
@@ -62,9 +63,9 @@ PYTHONUNBUFFERED=1 python3 main_ppo_split.py \
     trainer.critic_warmup=0 \
     trainer.logger=['console','wandb'] \
     trainer.project_name='verl_qwen_2gpu' \
-    trainer.experiment_name='qwen_0.5b_split_test' \
+    trainer.experiment_name='qwen_0.5b_split_fixed' \
     trainer.n_gpus_per_node=2 \
     trainer.nnodes=1 \
-    trainer.total_epochs=3 \
+    trainer.total_epochs=5 \
     trainer.save_freq=5 $@ \
-    2>&1 | tee verl_qwen0.5b_split_placement_run2.log
+    2>&1 | tee verl_qwen0.5b_split_placement_fixed.log

@@ -11,7 +11,7 @@ data:
   val_batch_size: null
   return_raw_input_ids: False
   return_raw_chat: False
-  return_full_prompt: False
+  return_full_prompt: True  # Enable to get full prompts for logging
   shuffle: True
   filter_overlong_prompts: True
   truncation: error
@@ -41,17 +41,18 @@ actor_rollout_ref:
     shuffle: False
     ulysses_sequence_parallel_size: 1
     optim:
-      lr: 1e-6
-      lr_warmup_steps: -1
+      lr: 5e-6
+      lr_warmup_steps: -1  # Prioritized. Negative values mean delegating to lr_warmup_steps_ratio.
       lr_warmup_steps_ratio: 0.
       min_lr_ratio: null
       warmup_style: constant
-      total_training_steps: -1
+      total_training_steps: -1  # must be override by program
+      weight_decay: 0.01
     fsdp_config:
       wrap_policy:
         min_num_params: 0
-      param_offload: True  # Enable for GPU 0 memory optimization
-      optimizer_offload: True  # Enable for GPU 0 memory optimization
+      param_offload: False  # Disable for sync optimization
+      optimizer_offload: False  # Disable for sync optimization
       fsdp_size: -1
   ref:
     fsdp_config:
@@ -95,7 +96,8 @@ critic:
     lr_warmup_steps_ratio: 0.
     min_lr_ratio: null
     warmup_style: constant
-    total_training_steps: -1
+    total_training_steps: -1  # must be override by program
+    weight_decay: 0.01
   model:
     path: Qwen/Qwen2.5-0.5B-Instruct  # Same model for critic
     tokenizer_path: ${actor_rollout_ref.model.path}
@@ -143,6 +145,10 @@ reward_model:
   forward_max_token_len_per_gpu: ${critic.forward_max_token_len_per_gpu}
   reward_manager: naive
 
+custom_reward_function:
+  path: null
+  name: compute_score
+
 algorithm:
   gamma: 1.0
   lam: 1.0
@@ -158,14 +164,17 @@ trainer:
   total_training_steps: null
   project_name: verl_qwen_2gpu
   experiment_name: qwen_0.5b_split_placement
-  logger: [ 'console' ]
-  log_val_generations: 0
+  logger: [ 'console', 'wandb' ]
+  log_val_generations: 5
+  log_train_examples: 3  # Log first 3 examples from each training batch
+  save_training_outputs: true  # Save all training data to CSV files
+  training_output_dir: "training_outputs"  # Directory for CSV files
   nnodes: 1
   n_gpus_per_node: 2  # 2 GPU setup
   save_freq: 5
   resume_mode: auto
   resume_from_path: null
-  test_freq: -1
+  test_freq: 10
   critic_warmup: 0
   default_hdfs_dir: null
   del_local_ckpt_after_load: False
